@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub — Colaboração, Código e Comunidade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0D1117;
+    --bg-panel:#131A22;
+    --bg-panel-soft: rgba(22,27,34,0.55);
+    --border: #262E38;
+    --blue:#58A6FF;
+    --purple:#A371F7;
+    --green:#3FB950;
+    --text:#E6EDF3;
+    --muted:#8B949E;
+    --font-display:'Space Grotesk', sans-serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'JetBrains Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    overflow:hidden;
+  }
+  ::selection{background:var(--purple); color:#fff;}
+
+  /* ---------- background canvas (constellation) ---------- */
+  #sky{
+    position:fixed; inset:0; z-index:0; display:block; background:var(--bg);
+  }
+  .grid-floor{
+    position:fixed; inset:0; z-index:1; pointer-events:none;
+    background-image:
+      linear-gradient(to right, rgba(88,166,255,0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(88,166,255,0.05) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 30%, transparent 75%);
+    opacity:.6;
+  }
+
+  /* ---------- scroll container ---------- */
+  #scroller{
+    position:relative; z-index:2;
+    height:100vh; overflow-y:scroll; overflow-x:hidden;
+    scroll-snap-type:y mandatory;
+    scrollbar-width:none;
+  }
+  #scroller::-webkit-scrollbar{display:none;}
+
+  section{
+    position:relative;
+    min-height:100vh;
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    scroll-snap-align:start;
+    scroll-snap-stop:always;
+    padding: 90px 8vw;
+    overflow:hidden;
+  }
+
+  .inner{
+    position:relative; z-index:3;
+    width:100%; max-width:1180px;
+    opacity:0; transform:scale(.93) translateY(24px);
+    filter:blur(6px);
+    transition: opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1), filter .9s cubic-bezier(.2,.7,.2,1);
+  }
+  section.active .inner{
+    opacity:1; transform:scale(1) translateY(0); filter:blur(0);
+  }
+
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:.78rem;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--green);
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:18px;
+  }
+  .eyebrow::before{
+    content:'●'; color:var(--green); font-size:.6rem;
+    animation:blink 2.2s ease-in-out infinite;
+  }
+  @keyframes blink{ 0%,100%{opacity:1;} 50%{opacity:.25;} }
+
+  h1,h2,h3{ font-family:var(--font-display); font-weight:600; letter-spacing:-.01em; }
+  h2{ font-size:clamp(1.9rem, 4vw, 3.1rem); margin-bottom:20px; line-height:1.08; }
+  p{ color:var(--muted); font-size:1.05rem; line-height:1.7; }
+  .lede{ font-size:1.2rem; max-width:640px; }
+
+  .grad-text{
+    background:linear-gradient(90deg, var(--blue), var(--purple));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+
+  code, .mono{ font-family:var(--font-mono); }
+
+  /* nav dots */
+  #navdots{
+    position:fixed; right:34px; top:50%; transform:translateY(-50%);
+    z-index:20; display:flex; flex-direction:column; gap:16px;
+  }
+  #navdots button{
+    width:10px; height:10px; border-radius:50%;
+    background:transparent; border:1.5px solid var(--border);
+    cursor:pointer; padding:0; position:relative;
+    transition:border-color .3s, background .3s;
+  }
+  #navdots button .tip{
+    position:absolute; right:22px; top:50%; transform:translateY(-50%);
+    font-family:var(--font-mono); font-size:.7rem; color:var(--muted);
+    white-space:nowrap; opacity:0; transition:opacity .25s; pointer-events:none;
+  }
+  #navdots button:hover .tip{ opacity:1; }
+  #navdots button.active{ background:var(--blue); border-color:var(--blue); box-shadow:0 0 12px var(--blue); }
+
+  /* top hud */
+  #hud{
+    position:fixed; top:26px; left:34px; z-index:20;
+    font-family:var(--font-mono); font-size:.75rem; color:var(--muted);
+    display:flex; align-items:center; gap:10px;
+  }
+  #hud b{ color:var(--text); font-weight:500; }
+  #hud .sep{ color:var(--border); }
+
+  #scrollhint{
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
+    z-index:20; font-family:var(--font-mono); font-size:.72rem; color:var(--muted);
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    letter-spacing:.08em; text-transform:uppercase;
+    transition:opacity .5s;
+  }
+  #scrollhint .line{ width:1px; height:26px; background:linear-gradient(var(--blue), transparent); animation:down 1.6s ease-in-out infinite; }
+  @keyframes down{ 0%{transform:translateY(-6px); opacity:0;} 50%{opacity:1;} 100%{transform:translateY(10px); opacity:0;} }
+
+  /* ---------- decorative blobs ---------- */
+  .blob{
+    position:absolute; border-radius:50%; filter:blur(90px); z-index:1; pointer-events:none;
+  }
+
+  /* =============== SECTION 1 — HERO =============== */
+  #s1 .inner{ text-align:center; display:flex; flex-direction:column; align-items:center; }
+  .hero-title{ font-size:clamp(2.6rem, 7vw, 5.6rem); line-height:1; margin-bottom:22px; }
+  .hero-sub{ font-size:1.15rem; color:var(--muted); max-width:560px; margin-bottom:34px; }
+  .hero-term{
+    font-family:var(--font-mono); font-size:.85rem; color:var(--green);
+    background:var(--bg-panel-soft); border:1px solid var(--border); border-radius:8px;
+    padding:14px 20px; backdrop-filter:blur(6px);
+  }
+  .hero-term .p1{ color:var(--muted); }
+  .caret{ display:inline-block; width:7px; height:1em; background:var(--green); margin-left:4px; vertical-align:-2px; animation:blink 1s steps(1) infinite; }
+
+  /* =============== SECTION 2 — WHAT IS GITHUB =============== */
+  .cardgrid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:34px; }
+  .card{
+    background:var(--bg-panel-soft); border:1px solid var(--border); border-radius:14px;
+    padding:26px; backdrop-filter:blur(6px);
+    transition:transform .35s, border-color .35s, box-shadow .35s;
+  }
+  .card:hover{ transform:translateY(-6px); border-color:var(--blue); box-shadow:0 10px 40px rgba(88,166,255,.12); }
+  .card .icon{ width:38px; height:38px; margin-bottom:16px; }
+  .card h3{ font-size:1.05rem; margin-bottom:8px; font-weight:600; }
+  .card p{ font-size:.92rem; }
+  .quote{
+    font-family:var(--font-display); font-size:1.4rem; color:var(--text);
+    border-left:2px solid var(--purple); padding-left:20px; margin:30px 0 8px;
+  }
+
+  /* =============== SECTION 3 — TIMELINE =============== */
+  .timeline{ position:relative; margin-top:40px; padding-left:26px; }
+  .timeline::before{
+    content:''; position:absolute; left:5px; top:6px; bottom:6px; width:2px;
+    background:linear-gradient(var(--blue), var(--purple), var(--green));
+  }
+  .tl-item{ position:relative; padding:0 0 38px 30px; }
+  .tl-item:last-child{ padding-bottom:0; }
+  .tl-item::before{
+    content:''; position:absolute; left:-26px; top:4px; width:12px; height:12px; border-radius:50%;
+    background:var(--bg); border:2px solid var(--blue); box-shadow:0 0 0 4px rgba(88,166,255,.12);
+  }
+  .tl-item.mi::before{ border-color:var(--purple); box-shadow:0 0 0 4px rgba(163,113,247,.14); }
+  .tl-item.ai::before{ border-color:var(--green); box-shadow:0 0 0 4px rgba(63,185,80,.14); }
+  .tl-year{ font-family:var(--font-mono); font-size:.85rem; color:var(--blue); margin-bottom:4px; }
+  .tl-item.mi .tl-year{ color:var(--purple); }
+  .tl-item.ai .tl-year{ color:var(--green); }
+  .tl-item h3{ font-size:1.15rem; margin-bottom:6px; }
+  .tl-item p{ font-size:.94rem; max-width:640px; }
+
+  /* =============== SECTION 4 — GIT x GITHUB =============== */
+  .split{ display:grid; grid-template-columns:1fr auto 1fr; gap:0; align-items:stretch; margin-top:30px; }
+  .split-col{ padding:30px; }
+  .split-col.git{ text-align:right; }
+  .split-div{ width:1px; background:linear-gradient(var(--border), var(--blue), var(--purple), var(--border)); margin:0 30px; }
+  .split-label{ font-family:var(--font-mono); font-size:1.3rem; margin-bottom:16px; }
+  .split-col.git .split-label{ color:var(--text); }
+  .split-col.gh .split-label{ background:linear-gradient(90deg,var(--blue),var(--purple)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .split-list{ list-style:none; }
+  .split-list li{ font-size:.92rem; color:var(--muted); padding:8px 0; border-bottom:1px dashed var(--border); }
+  .split-col.git .split-list li{ }
+
+  /* =============== SECTION 5 — WORKFLOW =============== */
+  .flow{ display:flex; align-items:center; justify-content:space-between; margin-top:44px; flex-wrap:wrap; gap:14px; }
+  .flow-step{ flex:1; min-width:150px; text-align:center; position:relative; }
+  .flow-node{
+    width:64px; height:64px; border-radius:50%; margin:0 auto 14px; display:flex; align-items:center; justify-content:center;
+    border:1.5px solid var(--border); background:var(--bg-panel-soft);
+    transition:box-shadow .3s, border-color .3s; position:relative; z-index:2;
+  }
+  .flow-step:nth-child(odd) .flow-node{ border-color:var(--blue); }
+  .flow-step:nth-child(even) .flow-node{ border-color:var(--purple); }
+  section.active .flow-node{ animation:pulse 2.6s ease-in-out infinite; }
+  .flow-step:nth-child(1) .flow-node{ animation-delay:0s; }
+  .flow-step:nth-child(2) .flow-node{ animation-delay:.3s; }
+  .flow-step:nth-child(3) .flow-node{ animation-delay:.6s; }
+  .flow-step:nth-child(4) .flow-node{ animation-delay:.9s; }
+  .flow-step:nth-child(5) .flow-node{ animation-delay:1.2s; }
+  @keyframes pulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(88,166,255,.28);} 50%{ box-shadow:0 0 0 10px rgba(88,166,255,0);} }
+  .flow-step h4{ font-family:var(--font-mono); font-size:.85rem; color:var(--text); margin-bottom:6px; }
+  .flow-step p{ font-size:.8rem; }
+  .flow-arrow{ flex:0 0 auto; color:var(--border); font-size:1.4rem; align-self:flex-start; margin-top:22px; }
+
+  /* =============== SECTION 6 — FEATURES =============== */
+  .feat-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:34px; }
+  .feat{
+    background:var(--bg-panel-soft); border:1px solid var(--border); border-radius:12px; padding:20px;
+    transition:transform .3s, border-color .3s;
+  }
+  .feat:hover{ transform:translateY(-4px); border-color:var(--green); }
+  .feat .dot{ width:8px; height:8px; border-radius:50%; background:var(--green); margin-bottom:12px; box-shadow:0 0 8px var(--green); }
+  .feat h4{ font-size:.95rem; margin-bottom:6px; }
+  .feat p{ font-size:.8rem; }
+
+  /* =============== SECTION 7 — SECURITY =============== */
+  .sec-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:18px; margin-top:34px; }
+  .sec-card{
+    background:var(--bg-panel-soft); border:1px solid var(--border); border-radius:14px; padding:24px;
+    display:flex; gap:16px; align-items:flex-start;
+  }
+  .sec-card .shield{ flex:0 0 auto; width:34px; height:34px; color:var(--blue); }
+  .sec-card h4{ font-size:1rem; margin-bottom:6px; }
+  .sec-card p{ font-size:.86rem; }
+
+  /* =============== SECTION 8 — COPILOT =============== */
+  #s8 .inner{ display:grid; grid-template-columns:1.1fr .9fr; gap:50px; align-items:center; }
+  .copilot-chat{
+    background:var(--bg-panel-soft); border:1px solid var(--border); border-radius:14px; padding:22px;
+    font-family:var(--font-mono); font-size:.82rem;
+  }
+  .bubble{ padding:10px 14px; border-radius:10px; margin-bottom:12px; max-width:88%; line-height:1.5; }
+  .bubble.you{ background:rgba(88,166,255,.1); border:1px solid rgba(88,166,255,.25); margin-left:auto; color:var(--text); }
+  .bubble.bot{ background:rgba(163,113,247,.1); border:1px solid rgba(163,113,247,.25); color:var(--text); }
+  .cop-tags{ display:flex; gap:10px; margin-top:22px; flex-wrap:wrap; }
+  .tag{ font-family:var(--font-mono); font-size:.74rem; color:var(--purple); border:1px solid rgba(163,113,247,.35); padding:5px 10px; border-radius:20px; }
+
+  /* =============== SECTION 9 — NUMBERS =============== */
+  .stat-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:34px; }
+  .stat{
+    background:var(--bg-panel-soft); border:1px solid var(--border); border-radius:14px; padding:22px;
+    text-align:left;
+  }
+  .stat .num{ font-family:var(--font-display); font-size:clamp(1.6rem,2.6vw,2.3rem); font-weight:700; }
+  .stat .num.blue{ color:var(--blue); } .stat .num.purple{ color:var(--purple); } .stat .num.green{ color:var(--green); }
+  .stat .lbl{ font-size:.78rem; color:var(--muted); margin-top:6px; }
+  .stat-foot{ margin-top:22px; font-size:.78rem; color:var(--muted); font-style:italic; }
+
+  /* =============== SECTION 10 — CLOSING =============== */
+  #s10 .inner{ text-align:center; }
+  #s10 .quote{ border:none; padding:0; font-size:clamp(1.5rem,3vw,2.3rem); margin:0 auto 30px; max-width:760px; text-align:center; }
+  .cta{
+    display:inline-flex; align-items:center; gap:10px; margin-top:10px;
+    font-family:var(--font-mono); font-size:.9rem; color:var(--bg); background:var(--green);
+    padding:14px 26px; border-radius:8px; text-decoration:none; font-weight:600;
+    transition:transform .3s, box-shadow .3s;
+  }
+  .cta:hover{ transform:translateY(-3px); box-shadow:0 8px 30px rgba(63,185,80,.35); }
+
+  @media (max-width: 860px){
+    #navdots{ display:none; }
+    section{ padding:110px 6vw; }
+    .cardgrid{ grid-template-columns:1fr; }
+    .split{ grid-template-columns:1fr; }
+    .split-div{ width:100%; height:1px; margin:20px 0; }
+    .split-col.git{ text-align:left; }
+    .feat-grid{ grid-template-columns:repeat(2,1fr); }
+    .sec-grid{ grid-template-columns:1fr; }
+    #s8 .inner{ grid-template-columns:1fr; }
+    .stat-grid{ grid-template-columns:repeat(2,1fr); }
+    .flow{ flex-direction:column; }
+    .flow-arrow{ transform:rotate(90deg); margin:0; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="sky"></canvas>
+<div class="grid-floor"></div>
+
+<div id="hud"><b id="hud-num">01</b><span class="sep">/</span>10 <span class="sep">·</span> <span id="hud-name">Início</span></div>
+
+<nav id="navdots"></nav>
+
+<div id="scrollhint"><span>role para voar</span><span class="line"></span></div>
+
+<div id="scroller">
+
+  <!-- 1 — HERO -->
+  <section id="s1" data-name="Início">
+    <div class="blob" style="width:520px;height:520px; top:-10%; left:-8%; background:radial-gradient(circle, rgba(88,166,255,.22), transparent 70%);"></div>
+    <div class="blob" style="width:480px;height:480px; bottom:-15%; right:-8%; background:radial-gradient(circle, rgba(163,113,247,.2), transparent 70%);"></div>
+    <div class="inner">
+      <div class="eyebrow">sobrevoando o universo github</div>
+      <h1 class="hero-title">GitHub<br><span class="grad-text">Colaboração, Código<br>e Comunidade</span></h1>
+      <p class="hero-sub">Um voo panorâmico pela maior plataforma de desenvolvimento colaborativo do mundo — história, recursos, segurança e IA.</p>
+      <div class="hero-term"><span class="p1">$</span> git commit -m "apresentação pronta"<span class="caret"></span></div>
+    </div>
+  </section>
+
+  <!-- 2 — O QUE É -->
+  <section id="s2" data-name="O que é">
+    <div class="inner">
+      <div class="eyebrow">seção 01 · aproximação</div>
+      <h2>O que é o <span class="grad-text">GitHub</span>?</h2>
+      <p class="lede">Uma plataforma de hospedagem de código e colaboração construída sobre o Git — o sistema de controle de versão distribuído mais usado do planeta. Na prática, funciona como uma rede social para quem programa.</p>
+      <div class="quote">"Se o código é o produto, o GitHub é a fábrica, a vitrine e o ponto de encontro."</div>
+      <div class="cardgrid">
+        <div class="card">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#58A6FF" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><circle cx="7" cy="6.5" r=".6" fill="#58A6FF"/></svg>
+          <h3>Hospedagem de repositórios</h3>
+          <p>Cada projeto vive em uma pasta versionada com todo o histórico de alterações do código.</p>
+        </div>
+        <div class="card">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#A371F7" stroke-width="1.6"><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8 12h6M8 10.5 16 7M8 13.5 16 17"/></svg>
+          <h3>Colaboração em tempo real</h3>
+          <p>Times inteiros — ou comunidades de milhares de pessoas — contribuem para o mesmo projeto sem sobrescrever o trabalho umas das outras.</p>
+        </div>
+        <div class="card">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#3FB950" stroke-width="1.6"><circle cx="12" cy="8" r="3.4"/><path d="M5 21c0-4 3-6 7-6s7 2 7 6"/></svg>
+          <h3>Rede social para devs</h3>
+          <p>Perfis, seguidores, estrelas e contribuições públicas formam um currículo vivo de quem programa.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 — TIMELINE -->
+  <section id="s3" data-name="História">
+    <div class="inner">
+      <div class="eyebrow">seção 02 · linha do tempo</div>
+      <h2>De um projeto de fim de semana <br>a gigante da <span class="grad-text">Microsoft</span></h2>
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-year">2008</div>
+          <h3>Fundação</h3>
+          <p>Tom Preston-Werner, Chris Wanstrath, PJ Hyett e Scott Chacon lançam o GitHub publicamente em abril.</p>
+        </div>
+        <div class="tl-item">
+          <div class="tl-year">2012</div>
+          <h3>Consolidação</h3>
+          <p>Um grande aporte de investimento impulsiona o GitHub como a principal plataforma para projetos open source.</p>
+        </div>
+        <div class="tl-item mi">
+          <div class="tl-year">2018</div>
+          <h3>Aquisição pela Microsoft</h3>
+          <p>A Microsoft compra o GitHub por cerca de US$ 7,5 bilhões, mantendo a plataforma independente e ampliando investimentos em segurança.</p>
+        </div>
+        <div class="tl-item ai">
+          <div class="tl-year">2021</div>
+          <h3>Nasce o Copilot</h3>
+          <p>Lançamento do GitHub Copilot, assistente de programação com IA, em parceria com a OpenAI.</p>
+        </div>
+        <div class="tl-item ai">
+          <div class="tl-year">2023–26</div>
+          <h3>Era da IA</h3>
+          <p>Expansão acelerada: Copilot Chat, Copilot Workspace, segurança avançada e crescimento recorde de novos desenvolvedores.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 — GIT x GITHUB -->
+  <section id="s4" data-name="Git x GitHub">
+    <div class="inner">
+      <div class="eyebrow">seção 03 · comparativo</div>
+      <h2>Git <span style="color:var(--muted)">×</span> <span class="grad-text">GitHub</span></h2>
+      <p class="lede">Duas coisas diferentes que trabalham juntas — e a confusão entre os dois nomes é a primeira coisa a esclarecer.</p>
+      <div class="split">
+        <div class="split-col git">
+          <div class="split-label mono">git</div>
+          <ul class="split-list">
+            <li>Software de controle de versão, criado por Linus Torvalds em 2005</li>
+            <li>Roda localmente, no computador de cada desenvolvedor</li>
+            <li>Cuida do histórico de versões do código</li>
+            <li>Não depende de nenhuma empresa específica</li>
+          </ul>
+        </div>
+        <div class="split-div"></div>
+        <div class="split-col gh">
+          <div class="split-label mono">github</div>
+          <ul class="split-list">
+            <li>Plataforma (site + serviço) que hospeda repositórios Git na nuvem</li>
+            <li>Roda na web, acessível de qualquer lugar com internet</li>
+            <li>Adiciona colaboração, interface visual, automações e comunidade</li>
+            <li>É um produto da Microsoft — assim como GitLab e Bitbucket são concorrentes</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 — WORKFLOW -->
+  <section id="s5" data-name="Fluxo de trabalho">
+    <div class="inner">
+      <div class="eyebrow">seção 04 · sobrevoo do fluxo</div>
+      <h2>Como o <span class="grad-text">GitHub</span> funciona</h2>
+      <p class="lede">O caminho que uma ideia percorre até virar parte do projeto principal.</p>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-node"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#58A6FF" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg></div>
+          <h4>Repositório</h4><p>Onde os arquivos e o histórico do projeto vivem.</p>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-node"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#A371F7" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 15v4M12 5v4"/></svg></div>
+          <h4>Commit</h4><p>Um "salvamento" com uma mensagem do que mudou.</p>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-node"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#58A6FF" stroke-width="1.6"><circle cx="7" cy="6" r="2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="12" r="2"/><path d="M7 8v8M7 12h8M15 12l2 0"/></svg></div>
+          <h4>Branch</h4><p>Cópia paralela para desenvolver sem afetar o principal.</p>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-node"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#A371F7" stroke-width="1.6"><circle cx="6" cy="12" r="2.2"/><circle cx="18" cy="12" r="2.2"/><path d="M8.2 12h7.6M13 9l3 3-3 3"/></svg></div>
+          <h4>Pull Request</h4><p>Pedido formal para juntar as mudanças, revisado por outras pessoas.</p>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-node"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3FB950" stroke-width="1.6"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8c0 5 4 4 10 4M6 16c0-5 4-4 10-4"/></svg></div>
+          <h4>Merge</h4><p>A junção efetiva das mudanças aprovadas ao código principal.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 — RECURSOS -->
+  <section id="s6" data-name="Recursos">
+    <div class="inner">
+      <div class="eyebrow">seção 05 · a cidade digital</div>
+      <h2>Principais <span class="grad-text">recursos</span></h2>
+      <p class="lede">O ecossistema construído em torno de cada repositório.</p>
+      <div class="feat-grid">
+        <div class="feat"><div class="dot"></div><h4>Projects</h4><p>Quadros estilo Kanban para planejar e acompanhar o trabalho.</p></div>
+        <div class="feat"><div class="dot"></div><h4>Discussions</h4><p>Fórum para debater ideias e construir comunidade em torno do projeto.</p></div>
+        <div class="feat"><div class="dot"></div><h4>Pages</h4><p>Hospedagem gratuita de sites estáticos direto do repositório.</p></div>
+        <div class="feat"><div class="dot"></div><h4>Codespaces</h4><p>Ambiente de desenvolvimento completo na nuvem, no navegador.</p></div>
+        <div class="feat"><div class="dot"></div><h4>Actions</h4><p>Automação de testes e implantações — o motor do CI/CD.</p></div>
+        <div class="feat"><div class="dot"></div><h4>Wiki</h4><p>Documentação colaborativa vinculada a cada repositório.</p></div>
+        <div class="feat"><div class="dot"></div><h4>Marketplace</h4><p>Loja de apps, ações e integrações para estender a plataforma.</p></div>
+        <div class="feat"><div class="dot"></div><h4>Sponsors</h4><p>Apoio financeiro para mantenedores de projetos open source.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 — SEGURANÇA -->
+  <section id="s7" data-name="Segurança">
+    <div class="inner">
+      <div class="eyebrow">seção 06 · perímetro de defesa</div>
+      <h2>Segurança no <span class="grad-text">GitHub</span></h2>
+      <p class="lede">Proteção do código do primeiro ao último commit.</p>
+      <div class="sec-grid">
+        <div class="sec-card">
+          <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="#58A6FF" stroke-width="1.5"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><h4>Dependabot</h4><p>Identifica dependências desatualizadas ou vulneráveis e sugere — ou aplica — atualizações automaticamente.</p></div>
+        </div>
+        <div class="sec-card">
+          <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="#A371F7" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <div><h4>Code scanning</h4><p>Analisa o código em busca de vulnerabilidades antes que cheguem à produção.</p></div>
+        </div>
+        <div class="sec-card">
+          <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="#3FB950" stroke-width="1.5"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+          <div><h4>Secret scanning</h4><p>Detecta senhas, tokens e chaves de API expostas acidentalmente no código.</p></div>
+        </div>
+        <div class="sec-card">
+          <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="#58A6FF" stroke-width="1.5"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V6a4 4 0 118 0v2M12 13v3"/></svg>
+          <div><h4>Autenticação em dois fatores</h4><p>Camada extra de segurança para contas, hoje incentivada — e em muitos casos exigida.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 — COPILOT -->
+  <section id="s8" data-name="Copilot & IA">
+    <div class="inner">
+      <div>
+        <div class="eyebrow">seção 07 · piloto automático</div>
+        <h2>GitHub <span class="grad-text">Copilot</span> e IA</h2>
+        <p class="lede">Lançado em 2021 com a OpenAI, o Copilot se tornou um dos produtos de IA que mais cresceram dentro da Microsoft — sugere código, completa funções e conversa com quem programa, direto no editor.</p>
+        <div class="cop-tags">
+          <span class="tag">Copilot Chat</span>
+          <span class="tag">Copilot Workspace</span>
+          <span class="tag">Adoção corporativa em escala</span>
+        </div>
+      </div>
+      <div class="copilot-chat">
+        <div class="bubble you">// como faço uma função para validar e-mail?</div>
+        <div class="bubble bot">Aqui está uma sugestão usando regex — quer que eu adicione testes também?</div>
+        <div class="bubble you">sim, e explica a regex</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 — NÚMEROS -->
+  <section id="s9" data-name="Números 2026">
+    <div class="inner">
+      <div class="eyebrow">seção 08 · painel de bordo</div>
+      <h2>GitHub em <span class="grad-text">números</span> — 2026</h2>
+      <div class="stat-grid">
+        <div class="stat"><div class="num blue" data-target="180" data-suffix="M+">0</div><div class="lbl">Desenvolvedores cadastrados</div></div>
+        <div class="stat"><div class="num purple" data-target="630" data-suffix="M+">0</div><div class="lbl">Repositórios hospedados</div></div>
+        <div class="stat"><div class="num green" data-target="43.2" data-decimals="1" data-suffix="M">0</div><div class="lbl">Pull requests mesclados / mês</div></div>
+        <div class="stat"><div class="num blue" data-target="1" data-suffix="B+">0</div><div class="lbl">Commits enviados em 2025</div></div>
+        <div class="stat"><div class="num purple" data-target="230" data-suffix="/min">0</div><div class="lbl">Novos repositórios por minuto</div></div>
+        <div class="stat"><div class="num green" data-target="4.7" data-decimals="1" data-suffix="M+">0</div><div class="lbl">Assinantes pagos do Copilot</div></div>
+        <div class="stat"><div class="num blue" data-target="8.3" data-decimals="1" data-suffix="M+">0</div><div class="lbl">Desenvolvedores no Brasil</div></div>
+        <div class="stat"><div class="num purple" data-target="2008" data-suffix="">0</div><div class="lbl">Ano de fundação da plataforma</div></div>
+      </div>
+      <div class="stat-foot">Dados do relatório Octoverse e de análises de mercado publicadas ao longo de 2026 — valores podem variar entre fontes.</div>
+    </div>
+  </section>
+
+  <!-- 10 — CLOSING -->
+  <section id="s10" data-name="Conclusão">
+    <div class="blob" style="width:600px;height:600px; top:10%; left:50%; transform:translateX(-50%); background:radial-gradient(circle, rgba(63,185,80,.14), transparent 70%);"></div>
+    <div class="inner">
+      <div class="eyebrow" style="justify-content:center;">pouso · seção 09</div>
+      <h2 style="text-align:center;">Muito mais que um <span class="grad-text">repositório de código</span></h2>
+      <div class="quote">"Build software better, together."</div>
+      <p class="lede" style="margin:0 auto 10px; text-align:center;">Hoje o GitHub é a infraestrutura social do desenvolvimento de software mundial — história, colaboração, automação e IA se encontram, moldando como o mundo constrói tecnologia, um commit de cada vez.</p>
+      <a class="cta" href="https://github.com" target="_blank" rel="noopener">$ git clone github.com/comece-agora →</a>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  // ---------- constellation background ----------
+  const canvas = document.getElementById('sky');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [];
+  const COLORS = ['88,166,255', '163,113,247', '63,185,80'];
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function resize(){
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  function initParticles(){
+    const count = Math.min(90, Math.floor((W*H)/18000));
+    particles = Array.from({length: count}, () => ({
+      x: Math.random()*W, y: Math.random()*H,
+      vx: (Math.random()-.5)*0.12, vy: (Math.random()-.5)*0.12,
+      r: Math.random()*1.6+0.6,
+      c: COLORS[Math.floor(Math.random()*COLORS.length)],
+      pulse: Math.random()*Math.PI*2,
+      isCommit: Math.random() < 0.12
+    }));
+  }
+  function tick(t){
+    ctx.clearRect(0,0,W,H);
+    for(const p of particles){
+      p.x += p.vx; p.y += p.vy;
+      if(p.x < 0 || p.x > W) p.vx *= -1;
+      if(p.y < 0 || p.y > H) p.vy *= -1;
+      p.pulse += 0.02;
+    }
+    for(let i=0;i<particles.length;i++){
+      for(let j=i+1;j<particles.length;j++){
+        const a = particles[i], b = particles[j];
+        const dx = a.x-b.x, dy = a.y-b.y;
+        const dist = Math.sqrt(dx*dx+dy*dy);
+        if(dist < 150){
+          ctx.strokeStyle = `rgba(${a.c},${(1-dist/150)*0.12})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+        }
+      }
+    }
+    for(const p of particles){
+      const glow = p.isCommit ? (Math.sin(p.pulse)*0.4+0.6) : 0.5;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${p.c},${glow})`;
+      ctx.arc(p.x, p.y, p.isCommit ? p.r*1.8 : p.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    if(!reduceMotion) requestAnimationFrame(tick);
+  }
+  window.addEventListener('resize', () => { resize(); initParticles(); });
+  resize(); initParticles();
+  requestAnimationFrame(tick);
+  if(reduceMotion){ ctx.clearRect(0,0,W,H); particles.forEach(p=>{ ctx.beginPath(); ctx.fillStyle=`rgba(${p.c},.5)`; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); }); }
+
+  // ---------- section reveal + nav ----------
+  const sections = Array.from(document.querySelectorAll('section'));
+  const navdots = document.getElementById('navdots');
+  const hudNum = document.getElementById('hud-num');
+  const hudName = document.getElementById('hud-name');
+  const scrollhint = document.getElementById('scrollhint');
+
+  sections.forEach((sec, i) => {
+    const btn = document.createElement('button');
+    btn.dataset.index = i;
+    const tip = document.createElement('span');
+    tip.className = 'tip';
+    tip.textContent = sec.dataset.name;
+    btn.appendChild(tip);
+    btn.addEventListener('click', () => sec.scrollIntoView({behavior: reduceMotion ? 'auto' : 'smooth'}));
+    navdots.appendChild(btn);
+  });
+  const dotButtons = Array.from(navdots.children);
+
+  function setActive(i){
+    sections.forEach((s, idx) => s.classList.toggle('active', idx === i));
+    dotButtons.forEach((b, idx) => b.classList.toggle('active', idx === i));
+    hudNum.textContent = String(i+1).padStart(2,'0');
+    hudName.textContent = sections[i].dataset.name;
+    scrollhint.style.opacity = i === 0 ? '1' : '0';
+  }
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting && entry.intersectionRatio > 0.5){
+        const idx = sections.indexOf(entry.target);
+        setActive(idx);
+        if(!entry.target.dataset.counted && entry.target.id === 's9'){
+          entry.target.dataset.counted = '1';
+          runCounters();
+        }
+      }
+    });
+  }, { threshold: [0.5] });
+  sections.forEach(s => io.observe(s));
+  setActive(0);
+
+  // ---------- counters ----------
+  function runCounters(){
+    document.querySelectorAll('.num[data-target]').forEach(el => {
+      const target = parseFloat(el.dataset.target);
+      const decimals = parseInt(el.dataset.decimals || '0', 10);
+      const suffix = el.dataset.suffix || '';
+      const duration = 1400;
+      const start = performance.now();
+      function frame(now){
+        const p = Math.min(1, (now-start)/duration);
+        const eased = 1 - Math.pow(1-p, 3);
+        const val = target*eased;
+        el.textContent = val.toFixed(decimals) + suffix;
+        if(p < 1) requestAnimationFrame(frame);
+        else el.textContent = target.toFixed(decimals) + suffix;
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  // keyboard navigation
+  document.getElementById('scroller').addEventListener('keydown', (e) => {
+    const active = sections.findIndex(s => s.classList.contains('active'));
+    if(e.key === 'ArrowDown' || e.key === 'PageDown'){ e.preventDefault(); sections[Math.min(active+1, sections.length-1)].scrollIntoView({behavior:'smooth'}); }
+    if(e.key === 'ArrowUp' || e.key === 'PageUp'){ e.preventDefault(); sections[Math.max(active-1,0)].scrollIntoView({behavior:'smooth'}); }
+  });
+})();
+</script>
+</body>
+</html>
