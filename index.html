@@ -317,11 +317,12 @@
     .stat-grid{ grid-template-columns:repeat(2,1fr); gap:12px; margin-top:24px; }
     .stat{ padding:16px; }
     .stat .num{ font-size:clamp(1.3rem,6vw,1.8rem); }
-    .flow{ flex-direction:column; align-items:stretch; margin-top:30px; gap:8px; }
-    .flow-step{ display:flex; align-items:center; gap:16px; text-align:left; min-width:0; }
+    .flow{ flex-direction:column; flex-wrap:nowrap; align-items:stretch; justify-content:flex-start; margin-top:30px; gap:14px; }
+    .flow-step{ flex:0 0 auto; display:flex; align-items:center; gap:16px; text-align:left; min-width:0; }
     .flow-node{ width:48px; height:48px; margin:0; flex:0 0 auto; }
     .flow-node svg{ width:20px; height:20px; }
     .flow-step h4{ margin-bottom:2px; }
+    .flow-step p{ font-size:.78rem; }
     .flow-arrow{ display:none; }
     .timeline{ padding-left:20px; margin-top:26px; }
     .tl-item{ padding:0 0 28px 22px; }
